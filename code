@@ -1,0 +1,417 @@
+#include <iostream>
+#include <vector>
+#include <unordered_map>
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+#include <algorithm>
+#include <stdexcept>
+
+using namespace std;
+
+// Estructura que representa a un estudiante
+struct Estudiante {
+    string id;
+    string nombre;
+    vector<float> notas;
+    float promedio;
+    
+    // Constructor por defecto
+    Estudiante() : promedio(0.0f) {}
+    
+    // Constructor con parámetros
+    Estudiante(string id, string nombre, vector<float> notas)
+        : id(id), nombre(nombre), notas(notas), promedio(0.0f) {
+        validarDatos();
+        calcularPromedio();
+    }
+    
+    // Validar consistencia de datos
+    void validarDatos() {
+        if (id.empty()) {
+            throw invalid_argument("El ID no puede estar vacío");
+        }
+        if (nombre.empty()) {
+            throw invalid_argument("El nombre no puede estar vacío");
+        }
+        if (notas.empty()) {
+            throw invalid_argument("Debe haber al menos una nota");
+        }
+        // Validar rango de notas (0-5 en Colombia)
+        for (float nota : notas) {
+            if (nota < 0.0f || nota > 5.0f) {
+                throw invalid_argument("Las notas deben estar entre 0.0 y 5.0");
+            }
+        }
+    }
+    
+    // Calcular el promedio aritmético simple
+    void calcularPromedio() {
+        if (notas.empty()) {
+            promedio = 0.0f;
+            return;
+        }
+        
+        float suma = 0.0f;
+        
+        for (float nota : notas) {
+            suma += nota;
+        }
+        
+        promedio = suma / notas.size();
+    }
+    
+    // Método para agregar una nota
+    void agregarNota(float nota) {
+        if (nota < 0.0f || nota > 5.0f) {
+            throw invalid_argument("La nota debe estar entre 0.0 y 5.0");
+        }
+        notas.push_back(nota);
+        calcularPromedio();
+    }
+    
+    // Sobrecarga del operador << para facilitar la impresión
+    friend ostream& operator<<(ostream& os, const Estudiante& e) {
+        os << "ID: " << e.id << "\n"
+           << "Nombre: " << e.nombre << "\n"
+           << "Promedio: " << fixed << setprecision(2) << e.promedio << "\n"
+           << "Notas: ";
+        for (size_t i = 0; i < e.notas.size(); i++) {
+            os << e.notas[i];
+            if (i < e.notas.size() - 1) os << ", ";
+        }
+        return os;
+    }
+};
+
+// Clase para gestionar el sistema de estudiantes
+class SistemaEstudiantes {
+private:
+    unordered_map<string, Estudiante> registro;
+    
+public:
+    // Agregar un estudiante al sistema
+    bool agregarEstudiante(const Estudiante& est) {
+        try {
+            if (registro.find(est.id) != registro.end()) {
+                cerr << "Error: Ya existe un estudiante con ID " << est.id << endl;
+                return false;
+            }
+            registro[est.id] = est;
+            return true;
+        } catch (const exception& e) {
+            cerr << "Error al agregar estudiante: " << e.what() << endl;
+            return false;
+        }
+    }
+    
+    // Buscar estudiante por ID
+    Estudiante* buscarEstudiante(const string& id) {
+        auto it = registro.find(id);
+        if (it != registro.end()) {
+            return &(it->second);
+        }
+        return nullptr;
+    }
+    
+    // Encontrar al estudiante con mejor promedio
+    Estudiante* encontrarMejorEstudiante() {
+        if (registro.empty()) {
+            return nullptr;
+        }
+        
+        Estudiante* mejor = nullptr;
+        float mejorPromedio = -1.0f;
+        
+        for (auto& par : registro) {
+            Estudiante& est = par.second;
+            if (est.promedio > mejorPromedio) {
+                mejorPromedio = est.promedio;
+                mejor = &est;
+            }
+        }
+        
+        return mejor;
+    }
+    
+    // Obtener top N estudiantes
+    vector<Estudiante*> obtenerTopEstudiantes(int n) {
+        vector<Estudiante*> estudiantes;
+        
+        for (auto& par : registro) {
+            estudiantes.push_back(&par.second);
+        }
+        
+        // Ordenar por promedio descendente
+        sort(estudiantes.begin(), estudiantes.end(),
+             [](Estudiante* a, Estudiante* b) {
+                 return a->promedio > b->promedio;
+             });
+        
+        // Retornar solo los top N
+        if (n < estudiantes.size()) {
+            estudiantes.resize(n);
+        }
+        
+        return estudiantes;
+    }
+    
+    // Calcular estadísticas generales
+    void mostrarEstadisticas() {
+        if (registro.empty()) {
+            cout << "No hay estudiantes registrados." << endl;
+            return;
+        }
+        
+        float sumaPromedios = 0.0f;
+        float maxPromedio = -1.0f;
+        float minPromedio = 6.0f;
+        
+        for (const auto& par : registro) {
+            const Estudiante& est = par.second;
+            sumaPromedios += est.promedio;
+            maxPromedio = max(maxPromedio, est.promedio);
+            minPromedio = min(minPromedio, est.promedio);
+        }
+        
+        float promedioGeneral = sumaPromedios / registro.size();
+        
+        cout << "\n=== ESTADÍSTICAS GENERALES ===" << endl;
+        cout << "Total de estudiantes: " << registro.size() << endl;
+        cout << "Promedio general: " << fixed << setprecision(2) << promedioGeneral << endl;
+        cout << "Promedio más alto: " << maxPromedio << endl;
+        cout << "Promedio más bajo: " << minPromedio << endl;
+    }
+    
+    // Mostrar todos los estudiantes
+    void mostrarTodosLosEstudiantes() {
+        if (registro.empty()) {
+            cout << "No hay estudiantes registrados." << endl;
+            return;
+        }
+        
+        cout << "\n=== LISTA DE ESTUDIANTES ===" << endl;
+        for (const auto& par : registro) {
+            cout << "\n" << par.second << endl;
+            cout << "------------------------" << endl;
+        }
+    }
+    
+    // Cargar estudiantes desde arreglo bidimensional
+    void cargarDesdeArregloBidimensional(const vector<vector<string>>& datos) {
+        int idCounter = 1000;
+        
+        for (const auto& fila : datos) {
+            if (fila.size() < 2) continue; // Debe tener al menos nombre y una nota
+            
+            try {
+                // Primer elemento es el nombre
+                string nombre = fila[0];
+                
+                // Generar ID automático
+                string id = to_string(idCounter++);
+                
+                // Los demás elementos son las notas
+                vector<float> notas;
+                for (size_t i = 1; i < fila.size(); i++) {
+                    float nota = stof(fila[i]);
+                    notas.push_back(nota);
+                }
+                
+                // Crear y agregar el estudiante
+                Estudiante estudiante(id, nombre, notas);
+                agregarEstudiante(estudiante);
+                
+            } catch (const exception& e) {
+                cerr << "Error al procesar estudiante: " << e.what() << endl;
+            }
+        }
+    }
+    
+    // Obtener número de estudiantes
+    size_t obtenerNumeroEstudiantes() const {
+        return registro.size();
+    }
+    
+    // Eliminar estudiante por ID
+    bool eliminarEstudiante(const string& id) {
+        auto it = registro.find(id);
+        if (it != registro.end()) {
+            registro.erase(it);
+            cout << "Estudiante con ID " << id << " eliminado exitosamente." << endl;
+            return true;
+        }
+        cout << "No se encontró un estudiante con ID " << id << endl;
+        return false;
+    }
+    
+    // Limpiar todos los estudiantes
+    void limpiarRegistro() {
+        registro.clear();
+    }
+};
+
+// Función para mostrar menú interactivo
+void mostrarMenu() {
+    cout << "\n=== SISTEMA DE GESTIÓN DE ESTUDIANTES ===" << endl;
+    cout << "1. Agregar estudiante manualmente" << endl;
+    cout << "2. Buscar estudiante por ID" << endl;
+    cout << "3. Mostrar mejor estudiante" << endl;
+    cout << "4. Mostrar top 3 estudiantes" << endl;
+    cout << "5. Mostrar todos los estudiantes" << endl;
+    cout << "6. Mostrar estadísticas generales" << endl;
+    cout << "7. Eliminar estudiante" << endl;
+    cout << "0. Salir" << endl;
+    cout << "Opción: ";
+}
+
+int main() {
+    SistemaEstudiantes sistema;
+    
+    // Datos de muestra en formato de arreglo bidimensional
+    vector<vector<string>> datosPrueba = {
+        {"Juan Perez", "0.4", "3.86", "1.52", "4.04", "0.68"},
+        {"Maria Garcia", "0.95", "0.67", "1.17", "3.72", "2.83"},
+        {"Pedro Gomez", "2.48", "2.12", "1.31", "3.62", "4.27"},
+        {"Ana Hernandez", "3.08", "3.21", "3.94", "1.54", "4.87"},
+        {"Luisa Gonzalez", "3.73", "2.25", "3.47", "1.07", "1.24"},
+        {"Jose Ramirez", "3.22", "1.84", "1.32", "3.76", "2.46"},
+        {"Carla Rodriguez", "1.76", "1.05", "1.43", "2.06", "3.79"},
+        {"Pablo Martinez", "3.89", "1.79", "3.41", "3.57", "2.2"},
+        {"Lucia Fernandez", "1.67", "2.7", "0.56", "3.87", "4.08"},
+        {"David Torres", "3.52", "0.36", "0.15", "0.05", "4.2"}
+    };
+    
+    // Cargar automáticamente los datos de prueba
+    cout << "==================================================" << endl;
+    cout << "  SISTEMA DE GESTIÓN DE ESTUDIANTES - EAFIT" << endl;
+    cout << "==================================================" << endl;
+    cout << "\nCargando datos de prueba del arreglo bidimensional..." << endl;
+    
+    sistema.cargarDesdeArregloBidimensional(datosPrueba);
+    
+    cout << "Se cargaron " << sistema.obtenerNumeroEstudiantes() 
+         << " estudiantes de ejemplo." << endl;
+    
+    // Mostrar automáticamente el mejor estudiante
+    cout << "\n" << string(50, '=') << endl;
+    Estudiante* mejor = sistema.encontrarMejorEstudiante();
+    if (mejor) {
+        cout << "ESTUDIANTE CON MEJOR DESEMPEÑO:" << endl;
+        cout << string(50, '=') << endl;
+        cout << "Nombre: " << mejor->nombre << endl;
+        cout << "Promedio: " << fixed << setprecision(2) << mejor->promedio << endl;
+        cout << string(50, '=') << endl;
+    }
+    
+    // Menú interactivo
+    int opcion;
+    do {
+        mostrarMenu();
+        cin >> opcion;
+        cin.ignore(); // Limpiar buffer
+        
+        switch (opcion) {
+            case 1: {
+                // Agregar estudiante manualmente
+                string id, nombre;
+                int numNotas;
+                
+                cout << "ID del estudiante: ";
+                getline(cin, id);
+                cout << "Nombre: ";
+                getline(cin, nombre);
+                cout << "¿Cuántas notas desea ingresar? ";
+                cin >> numNotas;
+                
+                vector<float> notas;
+                for (int i = 0; i < numNotas; i++) {
+                    float nota;
+                    cout << "Nota " << (i+1) << ": ";
+                    cin >> nota;
+                    notas.push_back(nota);
+                }
+                
+                try {
+                    Estudiante nuevo(id, nombre, notas);
+                    if (sistema.agregarEstudiante(nuevo)) {
+                        cout << "Estudiante agregado exitosamente." << endl;
+                        cout << "Promedio calculado: " << fixed << setprecision(2) 
+                             << nuevo.promedio << endl;
+                    }
+                } catch (const exception& e) {
+                    cerr << "Error: " << e.what() << endl;
+                }
+                break;
+            }
+            
+            case 2: {
+                // Buscar por ID
+                string id;
+                cout << "Ingrese el ID a buscar: ";
+                getline(cin, id);
+                
+                Estudiante* est = sistema.buscarEstudiante(id);
+                if (est) {
+                    cout << "\nEstudiante encontrado:\n" << *est << endl;
+                } else {
+                    cout << "No se encontró un estudiante con ID " << id << endl;
+                }
+                break;
+            }
+            
+            case 3: {
+                // Mostrar mejor estudiante
+                Estudiante* mejor = sistema.encontrarMejorEstudiante();
+                if (mejor) {
+                    cout << "\n=== ESTUDIANTE CON MEJOR DESEMPEÑO ===" << endl;
+                    cout << *mejor << endl;
+                } else {
+                    cout << "No hay estudiantes registrados." << endl;
+                }
+                break;
+            }
+            
+            case 4: {
+                // Top 3
+                auto top3 = sistema.obtenerTopEstudiantes(3);
+                cout << "\n=== TOP 3 ESTUDIANTES ===" << endl;
+                for (size_t i = 0; i < top3.size(); i++) {
+                    cout << "\n" << (i+1) << ". " << *top3[i] << endl;
+                    cout << "------------------------" << endl;
+                }
+                break;
+            }
+            
+            case 5:
+                // Mostrar todos
+                sistema.mostrarTodosLosEstudiantes();
+                break;
+            
+            case 6:
+                // Estadísticas
+                sistema.mostrarEstadisticas();
+                break;
+            
+            case 7: {
+                // Eliminar estudiante
+                string id;
+                cout << "Ingrese el ID del estudiante a eliminar: ";
+                getline(cin, id);
+                sistema.eliminarEstudiante(id);
+                break;
+            }
+            
+            case 0:
+                cout << "\n¡Hasta pronto!" << endl;
+                break;
+            
+            default:
+                cout << "Opción no válida." << endl;
+        }
+        
+    } while (opcion != 0);
+    
+    return 0;
+}
